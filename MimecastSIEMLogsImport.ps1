@@ -16,10 +16,24 @@ Write-Host "PowerShell timer trigger function ran! TIME: $currentUTCtime"
 $baseUrl = "https://us-api.mimecast.com"
 $uri = "/api/audit/get-siem-logs"
 $url = $baseUrl + $uri
-$accessKey = *
-$secretKey = *
-$appId = *
-$appKey = *
+# Mimecast API Applications AccessKey generated
+$accessKey = ""
+# Mimecast API Applications SecertKey generated
+$secretKey = ""
+# Mimecast API Applications ID
+$appId = ""
+# Mimecast API Applications Key
+$appKey = ""
+# Replace with your Azure Function Resource Group Name
+$funcrgname = ""
+# Replace with your Azure Function Name
+$funcname = ""
+# Replace with your Workspace ID
+$CustomerId = "" 
+# Replace with your Primary Key
+$SharedKey = ""
+## Used for manual step by step testing
+#$ENV:mcsiemtoken = ""
 
 #Generate request header values
 $hdrDate = (Get-Date).ToUniversalTime().ToString("ddd, dd MMM yyyy HH:mm:ss UTC")
@@ -44,7 +58,8 @@ $postBody = "{
                  ""data"":[
                         {
                             ""type"": ""MTA"",
-                            ""fileFormat"": ""json""
+                            ""fileFormat"": ""json"",
+                            ""token"": ""$ENV:mcsiemtoken""
                         }
                     ]
                 }"
@@ -52,7 +67,7 @@ $postBody = "{
                 
 #Send Request
 $response = Invoke-RestMethod -Method Post -Headers $headers -Body $postBody -Uri $url -ResponseHeadersVariable "headvar"
-$mcsiemtoken = $headVar.'mc-siem-token'
+$newmcsiemtoken = $headVar.'mc-siem-token'
 
 #Print the response
 $response
@@ -60,13 +75,6 @@ $response
 #Manipulate Response
 
 #Send Response to LogAnalytics
-
-# Replace with your Workspace ID
-$CustomerId = * 
-
-# Replace with your Primary Key
-$SharedKey = *
-
 # Specify the name of the record type that you'll be creating
 $LogType = "Mimecast"
 
@@ -89,7 +97,12 @@ $json = @"
 }]
 "@ #>
 
+# Needs Rework to further parse before submitting
 $mimecast = $response | ConvertTo-Json
+
+#Parse json data removing a nest for clean push to log Analytics
+$mimecastrefine = $mimecast | ConvertFrom-Json
+$mimecastrefine = $mimecastrefine.data | ConvertTo-Json
 
 # Create the function to create the authorization signature
 Function Build-Signature ($customerId, $sharedKey, $date, $contentLength, $method, $contentType, $resource)
@@ -141,4 +154,28 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
 #VERIFY $RESPONSE
 
 # Submit the data to the API endpoint
-Post-LogAnalyticsData -customerId $customerId -sharedKey $sharedKey -body ([System.Text.Encoding]::UTF8.GetBytes($mimecast)) -logType $logType
+Post-LogAnalyticsData -customerId $customerId -sharedKey $sharedKey -body ([System.Text.Encoding]::UTF8.GetBytes($mimecastrefine)) -logType $logType
+
+# Create a App Settings hash table
+$newappsets = $null
+$newappsets = @{}
+
+#before exiting write new MC SIEM Token to overwrite env variable: $newmcsiemtoken to $ENV:mcsiemtoken
+#Obtain Existing App Settings Hashtbale
+$app = Get-AzWebApp -ResourceGroupName $funcrgname -Name $funcname
+$appsets = $app.SiteConfig.AppSettings
+
+#Run through and populate the new App Settings Hashtable with existing data except the mcsiemtoken, this will be replaced by new value.
+foreach ($appset in $appsets){
+    # Check if key/value is mcsiemtoken, overwrite a new value
+    if ($appset.Name -eq "mcsiemtoken"){
+        $newappsets.Add( $appset.Name, $newmcsiemtoken )
+    }
+    # place in existing app settings
+    Else {
+        $newappsets.Add( $appset.Name, $appset.Value )
+    }
+}
+
+#overwrite the web app settings with new app settings hashtable with new mcsiemtoken
+Set-AzWebApp -ResourceGroupName $funcrgname -Name $funcname -AppSettings $newappsets
