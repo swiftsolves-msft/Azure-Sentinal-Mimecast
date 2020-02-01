@@ -53,3 +53,30 @@ $postBody = "{
 $response = Invoke-RestMethod -Method Post -Headers $headers -Body $postBody -Uri $url -ResponseHeadersVariable "headvar"
 $mcsiemtoken = $headVar.'mc-siem-token'
 Write-Host $mcsiemtoken
+# Convert stringarray() to string
+$newmcsiemtoken = $newmcsiemtoken | Out-String
+
+# Create a App Settings hash table
+$newappsets = $null
+$newappsets = @{}
+
+#before exiting write new MC SIEM Token to overwrite env variable: $newmcsiemtoken to $ENV:mcsiemtoken
+#Obtain Existing App Settings Hashtbale
+
+$app = Get-AzWebApp -ResourceGroupName $funcrgname -Name $funcname
+$appsets = $app.SiteConfig.AppSettings
+
+#Run through and populate the new App Settings Hashtable with existing data except the mcsiemtoken, this will be replaced by new value.
+foreach ($appset in $appsets){
+    # Check if key/value is mcsiemtoken, overwrite a new value
+    if ($appset.Name -eq "mcsiemtoken"){
+        $newappsets.Add( $appset.Name, $newmcsiemtoken )
+    }
+    # place in existing app settings
+    Else {
+        $newappsets.Add( $appset.Name, $appset.Value )
+    }
+}
+
+#overwrite the web app settings with new app settings hashtable with new mcsiemtoken
+Set-AzWebApp -ResourceGroupName $funcrgname -Name $funcname -AppSettings $newappsets
