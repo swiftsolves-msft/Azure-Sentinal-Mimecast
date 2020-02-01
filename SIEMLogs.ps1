@@ -68,6 +68,8 @@ $postBody = "{
 #Send Request
 $response = Invoke-RestMethod -Method Post -Headers $headers -Body $postBody -Uri $url -ResponseHeadersVariable "headvar"
 $newmcsiemtoken = $headVar.'mc-siem-token'
+# Convert stringarray() to string
+$newmcsiemtoken = $newmcsiemtoken | Out-String
 
 #Print the response
 $response
@@ -162,6 +164,7 @@ $newappsets = @{}
 
 #before exiting write new MC SIEM Token to overwrite env variable: $newmcsiemtoken to $ENV:mcsiemtoken
 #Obtain Existing App Settings Hashtbale
+
 $app = Get-AzWebApp -ResourceGroupName $funcrgname -Name $funcname
 $appsets = $app.SiteConfig.AppSettings
 
