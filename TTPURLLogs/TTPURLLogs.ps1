@@ -86,6 +86,10 @@ $response
 #Print hte Headers
 $headvar
 
+#pull specific data entries and refine to JSON
+$ttpurllogs = $response.data.clicklogs
+$ttpurllogsrefine = $ttpurllogs | ConvertTo-Json
+
 #Send Response to LogAnalytics
 # Specify the name of the record type that you'll be creating
 $LogType = "TTPurl"
@@ -166,4 +170,4 @@ Function Post-LogAnalyticsData($customerId, $sharedKey, $body, $logType)
 #VERIFY $RESPONSE
 
 # Submit the data to the API endpoint
-Post-LogAnalyticsData -customerId $customerId -sharedKey $sharedKey -body ([System.Text.Encoding]::UTF8.GetBytes($mimecastrefine)) -logType $logType
+Post-LogAnalyticsData -customerId $customerId -sharedKey $sharedKey -body ([System.Text.Encoding]::UTF8.GetBytes($ttpurllogsrefine)) -logType $logType
